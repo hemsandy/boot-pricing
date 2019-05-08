@@ -38,19 +38,26 @@ public class PriceTickEventHandler {
 
 
     PriceTickEventHandler() {
-        redisPublisher = new RedisPublisher("optpricing.3monrn.0001.use2.cache.amazonaws.com",6379);
+        redisPublisher = new RedisPublisher("optpricing.3monrn.0001.use2.cache.amazonaws.com", 6379);
     }
 
 
     public void handleEvent(final Stock stockPrice) {
         log.info("handleEvent..start - {}", stockPrice.symbol);
         List<OptionData> optionDataList = getOptions(stockPrice.symbol);
+        Map<String, String> redisCache = new HashMap<>();
         if(optionDataList != null && !optionDataList.isEmpty()) {
             optionDataList.stream().forEach(optionData -> {
                 double optionPrice = priceCalculator.price(optionData,stockPrice.price);
                 optionData.setOptionPrice(optionPrice);
+                if(redisPublisher != null) {
+                    redisCache.put(optionData.getOptionName(), String.valueOf(optionData.getOptionPrice()));
+                }
                 //redisPublisher.publish(optionData);
             });
+            if(redisPublisher != null){
+                redisPublisher.publish("OPTION_PRICES", redisCache);
+            }
             log.info("Prices calculated for {} -underlying: {}", stockPrice.symbol, stockPrice.price);
         }else {
             log.warn("Not Options Found For Symbol: {}" , stockPrice.symbol);
